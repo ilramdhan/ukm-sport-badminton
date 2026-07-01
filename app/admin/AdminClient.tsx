@@ -253,6 +253,7 @@ function EmptyCourt({
 }) {
   const [presetKey, setPresetKey] = useState(SCORE_PRESETS[0].key);
   const pById = new Map(players.map(p => [p.id, p]));
+  const selectedPreset = SCORE_PRESETS.find(p => p.key === presetKey)!;
 
   return (
     <div className="rounded-3xl overflow-hidden border border-indigo-500/20 shadow-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6">
@@ -264,15 +265,33 @@ function EmptyCourt({
         <div className="space-y-3">
           <div className="text-left">
             <label className="text-xs text-slate-400 font-bold uppercase tracking-widest">Mode Skor</label>
-            <select
-              value={presetKey}
-              onChange={e => setPresetKey(e.target.value)}
-              className="mt-1 w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-base outline-none focus:border-indigo-500"
-            >
-              {SCORE_PRESETS.map(p => (
-                <option key={p.key} value={p.key}>{p.label}</option>
-              ))}
-            </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+              {SCORE_PRESETS.map(p => {
+                const active = p.key === presetKey;
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => setPresetKey(p.key)}
+                    className={`text-left rounded-xl border p-3 transition-all ${
+                      active
+                        ? "bg-indigo-500/20 border-indigo-400 shadow-lg shadow-indigo-500/20"
+                        : "bg-slate-800/60 border-white/10 hover:border-white/30"
+                    }`}
+                  >
+                    <p className={`text-sm font-black ${active ? "text-white" : "text-slate-200"}`}>
+                      {p.label}
+                    </p>
+                    <p className={`text-[11px] mt-1 leading-snug ${active ? "text-indigo-200" : "text-slate-500"}`}>
+                      {p.description}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-600 mt-2 italic">
+              Terpilih: <b className="text-slate-400">{selectedPreset.label}</b>
+            </p>
           </div>
 
           {preview ? (

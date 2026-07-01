@@ -3,6 +3,7 @@ import type { CurrentMatch, ScoreMode, TeamSnapshotEntry } from "./types";
 export interface ScorePreset {
   key: string;
   label: string;
+  description: string;
   score_mode: ScoreMode;
   target_points: number;
   cap_points: number;
@@ -13,7 +14,8 @@ export interface ScorePreset {
 export const SCORE_PRESETS: ScorePreset[] = [
   {
     key: "rally21",
-    label: "Rally 21 (BWF standar)",
+    label: "Rally 21 · Best of 3",
+    description: "BWF standar modern. Setiap rally = poin. Cap 30, win by 2.",
     score_mode: "rally",
     target_points: 21,
     cap_points: 30,
@@ -22,7 +24,8 @@ export const SCORE_PRESETS: ScorePreset[] = [
   },
   {
     key: "rally15",
-    label: "Rally 15 (short game)",
+    label: "Rally 15 · Best of 3",
+    description: "Game pendek modern. Setiap rally = poin. Cap 21.",
     score_mode: "rally",
     target_points: 15,
     cap_points: 21,
@@ -31,21 +34,13 @@ export const SCORE_PRESETS: ScorePreset[] = [
   },
   {
     key: "traditional30",
-    label: "Klasik 30 (serve-based, double point)",
+    label: "Klasik 30 · 1 game panjang",
+    description: "Serve-based, ke 30 langsung selesai. Cuma server dapat poin (double point doubles).",
     score_mode: "traditional",
     target_points: 30,
     cap_points: 30,
     win_by_two: false,
     best_of: 1,
-  },
-  {
-    key: "traditional15",
-    label: "Klasik 15 (serve-based, doubles lama)",
-    score_mode: "traditional",
-    target_points: 15,
-    cap_points: 15,
-    win_by_two: false,
-    best_of: 3,
   },
 ];
 

@@ -30,7 +30,7 @@ export default async function ViewerPage() {
             </div>
           </div>
           <Link
-            href="/login"
+            href="/admin"
             className="text-xs px-3 py-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20"
           >
             🔐 Admin
