@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { gamesWonByTeam, matchWinner as computeMatchWinner } from "@/lib/score-engine";
@@ -102,17 +102,8 @@ export default function ViewerClient({
       {/* Present players list */}
       <PresentList players={presentPlayers} onCourt={onCourt} />
 
-      {/* History */}
-      {history.length > 0 && (
-        <div className="bg-slate-900 rounded-2xl border border-white/10 p-4">
-          <h2 className="font-bold text-slate-200 text-sm mb-3">📜 5 Match Terakhir</h2>
-          <div className="space-y-3">
-            {history.map(h => (
-              <MatchHistoryCard key={h.id} h={h} />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* History with pagination */}
+      <PaginatedHistory history={history} />
 
       <p className="text-slate-600 text-xs text-center pt-2">
         Halaman ini update otomatis begitu admin ubah state.
@@ -122,7 +113,62 @@ export default function ViewerClient({
 }
 
 // ============================================================
-// Present players list — grouped by tier, show who's where
+// History with client-side pagination (5 per page)
+// ============================================================
+export function PaginatedHistory({ history }: { history: MatchHistory[] }) {
+  const [page, setPage] = useState(0);
+  const perPage = 5;
+  const totalPages = Math.max(1, Math.ceil(history.length / perPage));
+  const safePage = Math.min(page, totalPages - 1);
+  const slice = history.slice(safePage * perPage, safePage * perPage + perPage);
+
+  if (history.length === 0) {
+    return (
+      <div className="bg-slate-900 rounded-2xl border border-white/10 p-4">
+        <h2 className="font-bold text-slate-200 text-sm mb-2">📜 Riwayat Match</h2>
+        <p className="text-slate-600 text-xs italic">Belum ada match selesai.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-slate-900 rounded-2xl border border-white/10 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-bold text-slate-200 text-sm">📜 Riwayat Match</h2>
+        <span className="text-xs text-slate-500 font-bold">
+          {history.length} total
+        </span>
+      </div>
+      <div className="space-y-3">
+        {slice.map(h => <MatchHistoryCard key={h.id} h={h} />)}
+      </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 gap-2">
+          <button
+            onClick={() => setPage(p => Math.max(0, p - 1))}
+            disabled={safePage === 0}
+            className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed border border-white/10 text-white font-bold py-2.5 rounded-xl text-sm transition-all"
+          >
+            ← Sebelumnya
+          </button>
+          <span className="text-xs text-slate-400 font-bold px-3 whitespace-nowrap">
+            Hal. {safePage + 1} / {totalPages}
+          </span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+            disabled={safePage >= totalPages - 1}
+            className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed border border-white/10 text-white font-bold py-2.5 rounded-xl text-sm transition-all"
+          >
+            Berikutnya →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Present players list — grouped by tier, readable cards with games count
 // ============================================================
 function PresentList({ players, onCourt }: { players: Player[]; onCourt: string[] }) {
   if (players.length === 0) {
@@ -134,43 +180,77 @@ function PresentList({ players, onCourt }: { players: Player[]; onCourt: string[
     );
   }
 
+  const maxGames = Math.max(...players.map(p => p.games_played), 1);
+
   return (
     <div className="bg-slate-900 rounded-2xl border border-white/10 p-4">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-bold text-slate-200 text-sm">👥 Hadir Hari Ini</h2>
         <span className="text-xs text-slate-500 font-bold">{players.length} orang</span>
       </div>
-      <div className="space-y-2.5">
+      <div className="space-y-4">
         {(["A", "B", "C"] as Tier[]).map(tier => {
           const group = players.filter(p => p.tier === tier);
           if (group.length === 0) return null;
+          const tierColor =
+            tier === "A" ? "text-yellow-400" : tier === "B" ? "text-sky-400" : "text-emerald-400";
+          const tierBar =
+            tier === "A" ? "bg-yellow-400/60" : tier === "B" ? "bg-sky-400/60" : "bg-emerald-400/60";
           return (
             <div key={tier}>
-              <p
-                className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${
-                  tier === "A" ? "text-yellow-400" : tier === "B" ? "text-sky-400" : "text-emerald-400"
-                }`}
-              >
-                Tier {tier} · {TIER_LABEL[tier]} ({group.length})
-              </p>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex items-center gap-2 mb-2">
+                <div className={`h-4 w-1 rounded-full ${tierBar}`} />
+                <p className={`text-[11px] font-black uppercase tracking-widest ${tierColor}`}>
+                  Tier {tier} · {TIER_LABEL[tier]}
+                </p>
+                <span className="text-[10px] text-slate-600 font-bold">({group.length})</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {group
                   .sort((a, b) => a.games_played - b.games_played)
                   .map(p => {
                     const isCourt = onCourt.includes(p.id);
+                    const barPct = Math.min(100, (p.games_played / maxGames) * 100);
                     return (
-                      <span
+                      <div
                         key={p.id}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs border ${
+                        className={`rounded-xl border p-2.5 flex items-center gap-3 ${
                           isCourt
-                            ? "bg-orange-500/15 border-orange-400/40 text-orange-200"
-                            : "bg-slate-800/80 border-white/10 text-slate-200"
+                            ? "bg-orange-500/15 border-orange-400/50 shadow-lg shadow-orange-500/10"
+                            : "bg-slate-800/60 border-white/10"
                         }`}
                       >
-                        {isCourt && <span className="text-[10px]">🏟️</span>}
-                        <span className="font-bold">{p.name}</span>
-                        <span className="text-slate-500 text-[10px]">· {p.games_played}×</span>
-                      </span>
+                        <div
+                          className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            isCourt ? "bg-orange-400 animate-pulse" : "bg-green-400"
+                          }`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className={`font-bold text-sm truncate ${isCourt ? "text-orange-100" : "text-white"}`}>
+                              {p.name}
+                            </p>
+                            {isCourt && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-500/30 border border-orange-400/50 text-orange-200 font-black flex-shrink-0">
+                                🏟️ MAIN
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <div className="flex-1 h-1 bg-slate-950/60 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full ${
+                                  isCourt ? "bg-orange-400/60" : "bg-slate-500/60"
+                                }`}
+                                style={{ width: `${barPct}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap">
+                              {p.games_played}× main
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     );
                   })}
               </div>
@@ -178,8 +258,8 @@ function PresentList({ players, onCourt }: { players: Player[]; onCourt: string[
           );
         })}
       </div>
-      <p className="text-slate-600 text-[10px] mt-3 italic">
-        Angka setelah nama = jumlah main sesi ini. Sistem prioritas main untuk yang paling sedikit angkanya.
+      <p className="text-slate-600 text-[11px] mt-3 italic">
+        Bar = jumlah main relatif. Yang paling sedikit main dapat prioritas berikutnya.
       </p>
     </div>
   );
@@ -349,54 +429,70 @@ export function NextMatchPreview({
     );
   }
 
+  const teamCard = (team: 1 | 2, ids: string[]) => {
+    const isBlue = team === 1;
+    return (
+      <div
+        className={`rounded-2xl p-4 border-2 ${
+          isBlue
+            ? "bg-blue-500/10 border-blue-400/30"
+            : "bg-red-500/10 border-red-400/30"
+        }`}
+      >
+        <p
+          className={`text-[10px] font-black uppercase tracking-widest mb-3 ${
+            isBlue ? "text-blue-300" : "text-red-300"
+          }`}
+        >
+          Tim {team}
+        </p>
+        <div className="space-y-2">
+          {ids.map(id => {
+            const p = pById.get(id);
+            return (
+              <div key={id} className="flex items-center gap-2">
+                <p className="font-black text-base text-white leading-tight flex-1 truncate">
+                  {p?.name}
+                </p>
+                {p?.tier && (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${TIER_BADGE[p.tier]}`}>
+                    {p.tier}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="bg-slate-900 rounded-2xl border border-indigo-500/30 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-indigo-300 text-xs font-bold uppercase tracking-widest">
+    <div className="bg-slate-900 rounded-2xl border border-indigo-500/30 p-4 sm:p-5">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <p className="text-indigo-300 text-sm font-black uppercase tracking-widest">
           ⏭ Match Berikutnya
         </p>
         {isProjection && (
-          <span className="text-[10px] text-slate-500 italic">
+          <span className="text-[10px] text-slate-500 italic bg-slate-800/60 border border-white/5 rounded-full px-2 py-0.5">
             proyeksi setelah match ini selesai
           </span>
         )}
       </div>
-      <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
-        <div className="bg-blue-500/10 border border-blue-400/20 rounded-xl p-3">
-          <p className="text-blue-300 font-black text-[10px] mb-1.5 tracking-widest">TIM 1</p>
-          {preview.team1.map(id => {
-            const p = pById.get(id);
-            return (
-              <div key={id} className="flex items-center gap-2">
-                <p className="font-bold text-sm">{p?.name}</p>
-                {p?.tier && (
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${TIER_BADGE[p.tier]}`}>
-                    {p.tier}
-                  </span>
-                )}
-              </div>
-            );
-          })}
+
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 sm:gap-4 items-stretch">
+        {teamCard(1, preview.team1)}
+        <div className="flex sm:flex-col items-center justify-center gap-2 sm:gap-1">
+          <div className="hidden sm:block h-8 w-px bg-slate-700" />
+          <span className="text-slate-500 font-black text-lg sm:text-sm">VS</span>
+          <div className="hidden sm:block h-8 w-px bg-slate-700" />
         </div>
-        <span className="text-slate-500 font-black text-xs">VS</span>
-        <div className="bg-red-500/10 border border-red-400/20 rounded-xl p-3">
-          <p className="text-red-300 font-black text-[10px] mb-1.5 tracking-widest">TIM 2</p>
-          {preview.team2.map(id => {
-            const p = pById.get(id);
-            return (
-              <div key={id} className="flex items-center gap-2">
-                <p className="font-bold text-sm">{p?.name}</p>
-                {p?.tier && (
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${TIER_BADGE[p.tier]}`}>
-                    {p.tier}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        {teamCard(2, preview.team2)}
       </div>
-      <p className="text-slate-500 text-[11px] mt-2 italic">{preview.reason}</p>
+
+      <p className="text-slate-500 text-xs mt-3 italic border-t border-white/5 pt-3">
+        💡 {preview.reason}
+      </p>
     </div>
   );
 }
@@ -405,24 +501,32 @@ export function NextMatchPreview({
 // Queue view: shows fair-sort order (games_played, join_time)
 // ============================================================
 function ReadOnlyQueue({ label, list }: { label: string; list: Player[] }) {
+  const scrollable = list.length > 6;
   return (
     <div className="bg-slate-900 rounded-2xl border border-white/10 p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-bold text-sm text-slate-200">{label}</h3>
-        <span className="text-xs text-slate-500 font-bold">{list.length}</span>
+        <span className="text-xs text-slate-500 font-bold">
+          {list.length}
+          {scrollable && <span className="text-slate-600"> · scroll</span>}
+        </span>
       </div>
       {list.length === 0 ? (
         <p className="text-slate-600 text-xs italic">Kosong.</p>
       ) : (
-        <div className="space-y-1.5">
+        <div
+          className={`space-y-1.5 ${
+            scrollable ? "max-h-72 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full" : ""
+          }`}
+        >
           {list.map((p, i) => (
             <div
               key={p.id}
               className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-slate-800/60 border-transparent"
             >
               <span className="text-xs font-black w-5 text-center text-slate-500">{i + 1}</span>
-              <span className="text-sm font-bold flex-1">{p.name}</span>
-              <span className="text-[10px] text-slate-500">{p.games_played}× main</span>
+              <span className="text-sm font-bold flex-1 truncate">{p.name}</span>
+              <span className="text-[10px] text-slate-500 whitespace-nowrap">{p.games_played}× main</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${TIER_BADGE[p.tier]}`}>
                 {p.tier}
               </span>

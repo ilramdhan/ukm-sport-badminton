@@ -9,7 +9,7 @@ export default async function ViewerPage() {
   const [players, current, history] = await Promise.all([
     fetchPlayers(),
     fetchCurrentMatch(),
-    fetchHistory(5),
+    fetchHistory(100),
   ]);
 
   const preview = projectNextMatch(players, current);

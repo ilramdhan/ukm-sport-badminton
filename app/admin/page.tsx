@@ -8,7 +8,7 @@ export default async function AdminPage() {
   const [players, current, history] = await Promise.all([
     fetchPlayers(),
     fetchCurrentMatch(),
-    fetchHistory(15),
+    fetchHistory(100),
   ]);
 
   const preview = projectNextMatch(players, current);

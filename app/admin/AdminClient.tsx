@@ -29,9 +29,9 @@ import {
 import { matchWinner as computeMatchWinner, gamesWonByTeam } from "@/lib/score-engine";
 import {
   GameProgressStrip,
-  MatchHistoryCard,
   MatchInfoBar,
   NextMatchPreview,
+  PaginatedHistory,
 } from "../ViewerClient";
 
 const TIER_BADGE: Record<Tier, string> = {
@@ -541,33 +541,44 @@ function QueueView({
   queueBC: Player[];
   onCourt: string[];
 }) {
-  const renderQueue = (label: string, list: Player[]) => (
-    <div className="bg-slate-900 rounded-2xl border border-white/10 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-sm text-slate-200">{label}</h3>
-        <span className="text-xs text-slate-500 font-bold">{list.length} orang</span>
-      </div>
-      {list.length === 0 ? (
-        <p className="text-slate-600 text-xs italic">Kosong.</p>
-      ) : (
-        <div className="space-y-1.5">
-          {list.map((p, i) => (
-            <div
-              key={p.id}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-slate-800/60 border-transparent"
-            >
-              <span className="text-xs font-black w-5 text-center text-slate-500">{i + 1}</span>
-              <span className="text-sm font-bold flex-1">{p.name}</span>
-              <span className="text-[10px] text-slate-500">{p.games_played}× main</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${TIER_BADGE[p.tier]}`}>
-                {p.tier}
-              </span>
-            </div>
-          ))}
+  const renderQueue = (label: string, list: Player[]) => {
+    const scrollable = list.length > 6;
+    return (
+      <div className="bg-slate-900 rounded-2xl border border-white/10 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-sm text-slate-200">{label}</h3>
+          <span className="text-xs text-slate-500 font-bold">
+            {list.length} orang{scrollable && <span className="text-slate-600"> · scroll</span>}
+          </span>
         </div>
-      )}
-    </div>
-  );
+        {list.length === 0 ? (
+          <p className="text-slate-600 text-xs italic">Kosong.</p>
+        ) : (
+          <div
+            className={`space-y-1.5 ${
+              scrollable
+                ? "max-h-72 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full"
+                : ""
+            }`}
+          >
+            {list.map((p, i) => (
+              <div
+                key={p.id}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-slate-800/60 border-transparent"
+              >
+                <span className="text-xs font-black w-5 text-center text-slate-500">{i + 1}</span>
+                <span className="text-sm font-bold flex-1 truncate">{p.name}</span>
+                <span className="text-[10px] text-slate-500 whitespace-nowrap">{p.games_played}× main</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${TIER_BADGE[p.tier]}`}>
+                  {p.tier}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -825,26 +836,19 @@ function HistoryTab({
   onClear: () => void;
 }) {
   return (
-    <div className="bg-slate-900 rounded-2xl border border-white/10 p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-bold text-slate-200 text-sm">📜 Riwayat ({history.length})</h2>
-        {history.length > 0 && (
+    <div className="space-y-3">
+      {history.length > 0 && (
+        <div className="flex justify-end">
           <button
             onClick={onClear}
             disabled={isPending}
-            className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-3 py-1 rounded-lg disabled:opacity-40"
+            className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-3 py-1.5 rounded-lg disabled:opacity-40"
           >
             Clear Riwayat
           </button>
-        )}
-      </div>
-      {history.length === 0 ? (
-        <p className="text-slate-600 text-sm text-center py-6">Belum ada match selesai.</p>
-      ) : (
-        <div className="space-y-3">
-          {history.map(h => <MatchHistoryCard key={h.id} h={h} />)}
         </div>
       )}
+      <PaginatedHistory history={history} />
     </div>
   );
 }

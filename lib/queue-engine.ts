@@ -7,17 +7,14 @@ export interface QueueSelection {
   reason: string;
 }
 
-/**
- * Skor tier untuk balancing dalam 4 pemain.
- * A=3, B=2, C=1.
- */
+/** Skor tier untuk balancing dalam 4 pemain. A=3, B=2, C=1. */
 function tierScore(tier: Tier): number {
   return tier === "A" ? 3 : tier === "B" ? 2 : 1;
 }
 
 /**
  * Cross-pair 4 pemain: terkuat + terlemah vs 2 tengah.
- * Menghasilkan pertandingan paling seimbang secara skill.
+ * Menghasilkan pertandingan paling seimbang secara skill dalam 4 orang tsb.
  */
 export function balanceFour(four: Player[]): { team1: string[]; team2: string[] } {
   const sorted = [...four].sort((a, b) => tierScore(b.tier) - tierScore(a.tier));
@@ -29,8 +26,6 @@ export function balanceFour(four: Player[]): { team1: string[]; team2: string[] 
 
 /**
  * Pemain di antrean, urut fairness: paling sedikit main dulu, tie-break by wait time.
- * Ini pusat algoritma keadilan: pemain yang sudah banyak main otomatis
- * dilewati, dan yang jarang main naik ke depan — mencegah "1-2 orang main terus".
  */
 function fairSortedQueue(present: Player[]): Player[] {
   return present
@@ -48,78 +43,88 @@ function splitTiers(queue: Player[]): { qA: Player[]; qBC: Player[] } {
   };
 }
 
-/**
- * Deteksi komposisi tim yang terpilih untuk label mode.
- */
-function detectMode(picked: Player[]): MatchMode {
-  const a = picked.filter(p => p.tier === "A").length;
-  const bc = picked.filter(p => p.tier === "B" || p.tier === "C").length;
-  if (a === 2 && bc === 2) return "balanced";
-  if (a === 4) return "a-only";
-  if (bc === 4) return "bc-only";
-  return "mixed";
+interface Candidate {
+  mode: MatchMode;
+  picked: Player[];
+  totalGames: number;
 }
 
 /**
- * Algoritma matchmaking berbasis FAIRNESS (games_played) + balancing tier.
+ * Algoritma matchmaking BALANCED-FIRST.
  *
- * Aturan:
- * 1. Kalau kedua antrean tier (A vs B+C) punya ≥ 3 orang: default 2A + 2BC,
- *    di mana yang dipilih adalah pemain paling sedikit main (FIFO tie-break).
- * 2. Kalau salah satu antrean tipis (< 3): pakai fairness ranking global.
- *    Pilih 4 pemain dengan games_played terkecil (ties by wait time).
- *    Ini otomatis alternate 2A+2BC ↔ 4BC saat 1 tier sedikit orangnya.
- * 3. Kurang dari 4 pemain di antrean: null.
+ * Setiap round, enumerate opsi feasible dan pilih yang paling adil:
+ *   - `balanced` (2A + 2BC) : perlu qA≥2 dan qBC≥2 — dari tiap tier ambil yang paling jarang main
+ *   - `a-only`   (4A)       : perlu qA≥4 — 4 A yang paling jarang main
+ *   - `bc-only`  (4BC)      : perlu qBC≥4 — 4 BC yang paling jarang main
  *
- * `lastMode` parameter di-preserve untuk compatibility, tapi tidak dipakai —
- * fairness by games_played sudah handle alternation secara natural.
+ * TIDAK PERNAH menghasilkan 3A+1BC atau 1A+3BC — kedua komposisi itu selalu timpang.
+ *
+ * Pilih kandidat dengan `totalGames` (jumlah games_played 4 orang tsb) terkecil.
+ * Ini otomatis:
+ *   1. Prioritaskan pemain paling jarang main (equal opportunity)
+ *   2. Selama masih bisa balanced, dia dipilih (karena ties broken toward "balanced" first)
+ *   3. Kalau salah satu tier "kelebihan main" relatif, single-tier match yang cocok naik prioritas
+ *
+ * Return null hanya kalau memang tidak ada kombinasi 4 orang yang bisa membentuk tim seimbang.
  */
 export function pickNextMatch(
   present: Player[],
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _lastMode: MatchMode | null = null,
 ): QueueSelection | null {
-  const fairSorted = fairSortedQueue(present);
-  if (fairSorted.length < 4) return null;
+  const fair = fairSortedQueue(present);
+  if (fair.length < 4) return null;
 
-  const { qA, qBC } = splitTiers(fairSorted);
+  const { qA, qBC } = splitTiers(fair);
 
-  // Kasus ideal: kedua antrean punya ≥ 3 orang. Default 2A + 2BC dari yang paling
-  // sedikit main. Ini menghasilkan variasi pasangan yang maksimal.
-  if (qA.length >= 3 && qBC.length >= 3) {
+  const candidates: Candidate[] = [];
+
+  if (qA.length >= 2 && qBC.length >= 2) {
     const picked = [qA[0], qA[1], qBC[0], qBC[1]];
-    const { team1, team2 } = balanceFour(picked);
-    return {
-      team1,
-      team2,
+    candidates.push({
       mode: "balanced",
-      reason: "Formasi seimbang: 2 Tier A + 2 Tier B/C (pilih yang paling sedikit main).",
-    };
+      picked,
+      totalGames: picked.reduce((s, p) => s + p.games_played, 0),
+    });
+  }
+  if (qA.length >= 4) {
+    const picked = qA.slice(0, 4);
+    candidates.push({
+      mode: "a-only",
+      picked,
+      totalGames: picked.reduce((s, p) => s + p.games_played, 0),
+    });
+  }
+  if (qBC.length >= 4) {
+    const picked = qBC.slice(0, 4);
+    candidates.push({
+      mode: "bc-only",
+      picked,
+      totalGames: picked.reduce((s, p) => s + p.games_played, 0),
+    });
   }
 
-  // Fallback: fairness murni. Ambil 4 pemain paling sedikit main.
-  // Ini otomatis alternate saat salah satu tier tipis:
-  //   Contoh 2A + 6BC (semua games=0):
-  //   - Round 1: pilih 2A+2BC (semua games=0, ambil by wait)
-  //   - Round 2: 4 BC yang belum main (games=0) menang priority → all-BC game
-  //   - Round 3: sisanya (games=1) equal → default kembali ke 2A+2BC by wait
-  // Hasil: A player istirahat setiap 2 game sekali, BC player rotate merata.
-  const picked = fairSorted.slice(0, 4);
-  const { team1, team2 } = balanceFour(picked);
-  const mode = detectMode(picked);
+  if (candidates.length === 0) return null;
 
-  let reason: string;
-  if (mode === "a-only") {
-    reason = "Antrean B/C kosong/tipis — 4 pemain Tier A yang paling jarang main.";
-  } else if (mode === "bc-only") {
-    reason = "Antrean A tipis — 4 pemain B/C yang paling jarang main. A players istirahat game ini.";
-  } else if (mode === "balanced") {
-    reason = "2 Tier A + 2 Tier B/C (dipilih dari pemain paling jarang main).";
-  } else {
-    reason = "Komposisi campur — pilih 4 pemain paling jarang main.";
-  }
+  // Sort by totalGames ASC; stable order preserves preference: balanced > a-only > bc-only when tied.
+  // Balanced first because it uses BOTH tier queues → paling variatif, paling representatif.
+  candidates.sort((a, b) => a.totalGames - b.totalGames);
+  const chosen = candidates[0];
+  const { team1, team2 } = balanceFour(chosen.picked);
 
-  return { team1, team2, mode, reason };
+  const reasonMap: Record<MatchMode, string> = {
+    balanced: "Formasi seimbang: 2 Tier A + 2 Tier B/C (dari pemain paling jarang main).",
+    "a-only": "Semua Tier A yang paling jarang main. Tier B/C istirahat game ini supaya semua adil.",
+    "bc-only": "Semua Tier B/C yang paling jarang main. Tier A istirahat game ini supaya semua adil.",
+    mixed: "Komposisi terbatas.",
+  };
+
+  return {
+    team1,
+    team2,
+    mode: chosen.mode,
+    reason: reasonMap[chosen.mode],
+  };
 }
 
 /**
