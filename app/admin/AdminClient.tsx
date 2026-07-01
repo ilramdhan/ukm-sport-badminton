@@ -31,6 +31,7 @@ import {
   GameProgressStrip,
   MatchHistoryCard,
   MatchInfoBar,
+  NextMatchPreview,
 } from "../ViewerClient";
 
 const TIER_BADGE: Record<Tier, string> = {
@@ -190,6 +191,14 @@ export default function AdminClient({
                 players={players}
                 isPending={isPending}
                 onStart={key => run(() => startMatch(key))}
+              />
+            )}
+
+            {current && (
+              <NextMatchPreview
+                preview={preview}
+                pById={new Map(players.map(p => [p.id, p]))}
+                isProjection={true}
               />
             )}
 

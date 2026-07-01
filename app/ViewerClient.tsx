@@ -90,6 +90,9 @@ export default function ViewerClient({
       {/* Match */}
       {current ? <ReadOnlyMatch match={current} /> : <ReadOnlyPreview preview={preview} pById={pById} />}
 
+      {/* Next match preview — shown ALWAYS, both idle and during live match */}
+      {current && <NextMatchPreview preview={preview} pById={pById} isProjection={true} />}
+
       {/* Queue */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <ReadOnlyQueue label="🏅 Antrean Tier A" list={queueA} />
@@ -317,6 +320,83 @@ function ReadOnlyPreview({
           <p className="text-slate-500 text-sm">Belum cukup pemain di antrean (butuh min. 4 orang).</p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Next-match preview card (compact, shown during live match)
+// ============================================================
+export function NextMatchPreview({
+  preview,
+  pById,
+  isProjection,
+}: {
+  preview: QueueSelection | null;
+  pById: Map<string, Player>;
+  isProjection: boolean;
+}) {
+  if (!preview) {
+    return (
+      <div className="bg-slate-900 rounded-2xl border border-white/10 p-4">
+        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">
+          ⏭ Match Berikutnya
+        </p>
+        <p className="text-slate-500 text-xs italic">
+          Butuh minimal 4 pemain tersedia (termasuk yang di lapangan sekarang saat match ini selesai).
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-slate-900 rounded-2xl border border-indigo-500/30 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-indigo-300 text-xs font-bold uppercase tracking-widest">
+          ⏭ Match Berikutnya
+        </p>
+        {isProjection && (
+          <span className="text-[10px] text-slate-500 italic">
+            proyeksi setelah match ini selesai
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
+        <div className="bg-blue-500/10 border border-blue-400/20 rounded-xl p-3">
+          <p className="text-blue-300 font-black text-[10px] mb-1.5 tracking-widest">TIM 1</p>
+          {preview.team1.map(id => {
+            const p = pById.get(id);
+            return (
+              <div key={id} className="flex items-center gap-2">
+                <p className="font-bold text-sm">{p?.name}</p>
+                {p?.tier && (
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${TIER_BADGE[p.tier]}`}>
+                    {p.tier}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <span className="text-slate-500 font-black text-xs">VS</span>
+        <div className="bg-red-500/10 border border-red-400/20 rounded-xl p-3">
+          <p className="text-red-300 font-black text-[10px] mb-1.5 tracking-widest">TIM 2</p>
+          {preview.team2.map(id => {
+            const p = pById.get(id);
+            return (
+              <div key={id} className="flex items-center gap-2">
+                <p className="font-bold text-sm">{p?.name}</p>
+                {p?.tier && (
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${TIER_BADGE[p.tier]}`}>
+                    {p.tier}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <p className="text-slate-500 text-[11px] mt-2 italic">{preview.reason}</p>
     </div>
   );
 }

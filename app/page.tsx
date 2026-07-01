@@ -1,20 +1,18 @@
 import Link from "next/link";
-import { fetchCurrentMatch, fetchHistory, fetchLastMatchMode, fetchPlayers } from "@/lib/data";
-import { pickNextMatch } from "@/lib/queue-engine";
+import { fetchCurrentMatch, fetchHistory, fetchPlayers } from "@/lib/data";
+import { projectNextMatch } from "@/lib/queue-engine";
 import ViewerClient from "./ViewerClient";
-import type { MatchMode } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function ViewerPage() {
-  const [players, current, history, lastMode] = await Promise.all([
+  const [players, current, history] = await Promise.all([
     fetchPlayers(),
     fetchCurrentMatch(),
     fetchHistory(5),
-    fetchLastMatchMode(),
   ]);
 
-  const preview = current ? null : pickNextMatch(players, lastMode as MatchMode | null);
+  const preview = projectNextMatch(players, current);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">

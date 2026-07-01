@@ -1,4 +1,4 @@
-import type { Player, Tier, MatchMode } from "./types";
+import type { CurrentMatch, Player, Tier, MatchMode } from "./types";
 
 export interface QueueSelection {
   team1: string[];
@@ -120,4 +120,30 @@ export function pickNextMatch(
   }
 
   return { team1, team2, mode, reason };
+}
+
+/**
+ * Proyeksi match berikutnya. Kalau tidak ada match aktif, sama dengan pickNextMatch.
+ * Kalau ada match aktif: simulasikan 4 pemain di lapangan sudah selesai (games+1,
+ * queue_joined_at = sekarang) — mereka jadi paling belakang. Return preview siapa
+ * yang akan main setelah match ini kelar.
+ */
+export function projectNextMatch(
+  players: Player[],
+  current: CurrentMatch | null,
+): QueueSelection | null {
+  if (!current) return pickNextMatch(players);
+
+  const onCourtOrder = [...current.team1_ids, ...current.team2_ids];
+  const now = Date.now();
+  const projected: Player[] = players.map(p => {
+    const idx = onCourtOrder.indexOf(p.id);
+    if (idx === -1) return p;
+    return {
+      ...p,
+      games_played: p.games_played + 1,
+      queue_joined_at: p.is_present ? new Date(now + idx).toISOString() : null,
+    };
+  });
+  return pickNextMatch(projected);
 }
